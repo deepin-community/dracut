@@ -1,0 +1,82 @@
+Source: dracut
+Section: utils
+Priority: optional
+Maintainer: Thomas Lange <lange@debian.org>
+Build-Depends: debhelper-compat (= 12), debhelper, asciidoc-base, xsltproc, docbook-xsl, docbook-xml, quilt, libkmod-dev, pkg-config
+Standards-Version: 4.5.0
+Vcs-Browser: https://salsa.debian.org/debian/dracut
+Vcs-Git: https://salsa.debian.org/debian/dracut.git
+Homepage: http://www.kernel.org/pub/linux/utils/boot/dracut/dracut.html
+
+Package: dracut
+Architecture: all
+Multi-Arch: foreign
+Suggests: dracut-network
+Depends: dracut-core (>= ${binary:Version}), dracut-core (<< ${binary:Version}+b+~)
+Provides: linux-initramfs-tool
+Conflicts: initramfs-tools, live-tools
+Description: Initramfs generator using udev
+ This package builds a bootable initramfs for Linux kernel packages.  The
+ initramfs is loaded along with the kernel and is responsible for
+ mounting the root filesystem and starting the main init system.
+
+Package: dracut-core
+Architecture: any
+Multi-Arch: foreign
+Recommends: cryptsetup, dmsetup, dmraid, lvm2, mdadm, console-setup, binutils, systemd, pigz
+Depends: bash (>= 4), cpio, kmod, udev, kpartx, util-linux (>= 2.20), pkg-config, libkmod2, e2fsprogs, ${shlibs:Depends}, ${misc:Depends}
+Breaks: dracut-network (<< 043-2), dracut (<< 044+3-2~)
+Replaces: dracut-network (<< 043-2), dracut (<< 044+3-2~)
+Description: dracut is an event driven initramfs infrastructure (core tools)
+ Unlike existing initramfs's, this is an attempt at having as little as
+ possible hard-coded into the initramfs as possible.  The initramfs has
+ (basically) one purpose in life -- getting the rootfs mounted so that
+ we can transition to the real rootfs.  This is all driven off of
+ device availability.  Therefore, instead of scripts hard-coded to do
+ various things, we depend on udev to create device nodes for us and
+ then when we have the rootfs's device node, we mount and carry on.
+ Having the root on MD, LVM2, LUKS is supported as well as NFS, iSCSI,
+ NBD and FCOE with dracut-network.
+
+Package: dracut-network
+Architecture: all
+Recommends: nfs-common, open-iscsi, nbd-client, curl
+Depends: dracut-core, iputils-arping, isc-dhcp-client, ${misc:Depends}
+Description: dracut is an event driven initramfs infrastructure (network modules)
+ Package to build a dracut initramfs with network support. This
+ includes dracut modules for NFS, CIFS, iSCSI, HTTP, NBD, FCP and FCOE.
+
+Package: dracut-squash
+Architecture: all
+Depends: dracut-core, squashfs-tools, ${misc:Depends}
+Breaks: dracut-core (<< 050-1)
+Replaces: dracut-core (<< 050-1)
+Description: dracut is an event driven initramfs infrastructure (squashfs modules)
+ Package to build an initramfs with most files in a squashfs image.
+ .
+ This package provides a dracut module to build an initramfs, but
+ store most files in a squashfs image, result in a smaller initramfs
+ size and reduce runtime memory usage.
+
+Package: dracut-live
+Architecture: all
+Depends: dracut-network, curl, dmsetup, ${misc:Depends}
+Breaks: dracut-network (<< 050-1), dracut-core (<< 050-1)
+Replaces: dracut-network (<< 050-1), dracut-core (<< 050-1)
+Description: dracut is an event driven initramfs infrastructure (live image modules)
+ Package to build a dracut initramfs with live image capabilities.
+ .
+ This package requires everything which is needed to build an
+ initramfs with dracut, with live image capabilities, like Live CDs.
+
+Package: dracut-config-generic
+Architecture: all
+Depends: dracut-core
+Description: dracut is an event driven initramfs infrastructure
+ This is the dracut configuration to turn off hostonly image generation
+
+Package: dracut-config-rescue
+Architecture: all
+Depends: dracut-core
+Description: dracut is an event driven initramfs infrastructure
+ This is the dracut configuration to turn on rescue image generation
