@@ -1,10 +1,7 @@
 AUTHORS
-HACKING
-NEWS
+docs/HACKING.md
+NEWS.md
 README.md
-README.cross
-README.generic
-README.kernel
-README.modules
-TODO
+docs/README.cross
+docs/README.kernel
 dracut.html

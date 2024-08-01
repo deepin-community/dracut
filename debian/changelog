@@ -1,3 +1,198 @@
+dracut (103-1) unstable; urgency=low
+
+  * new upstream version 103
+  * sync and delete patches
+  * add new dracut module
+
+ -- Thomas Lange <lange@debian.org>  Thu, 25 Jul 2024 13:30:18 +0900
+
+dracut (102-3) unstable; urgency=medium
+
+  * add module net-lib, Closes: #1072744
+  * remove obsolete patch fido-libz
+
+ -- Thomas Lange <lange@debian.org>  Fri, 07 Jun 2024 13:57:47 +0200
+
+dracut (102-2) unstable; urgency=medium
+
+  * add 90systemd-cryptsetup module, Closes: 1072538
+
+ -- Thomas Lange <lange@debian.org>  Tue, 04 Jun 2024 11:38:08 +0200
+
+dracut (102-1) unstable; urgency=low
+
+  * new upstream:
+    Closes: 1029324, 1041614, 1022129, 1071592, 1072174, 1068250
+    Closes: 1071182, 1059501
+  * change to new dracut-ng upstream repository, the package name remains
+    unchanged
+  * apply salsa MR #11, Closes: 753752
+  * move kpartx from depends to recommends, Closes: 1033158
+
+ -- Thomas Lange <lange@debian.org>  Mon, 03 Jun 2024 14:14:11 +0200
+
+dracut (060+5-8) unstable; urgency=low
+
+  * control: adjust breaks, replaces, Closes: #1071208, #1071244
+  * add patch taken from dracut-ng, Closes: #1071182
+
+ -- Thomas Lange <lange@debian.org>  Sun, 19 May 2024 16:45:33 +0200
+
+dracut (060+5-7) unstable; urgency=low
+
+  * control: update package depends name
+  * add lintian override
+
+ -- Thomas Lange <lange@debian.org>  Mon, 01 Apr 2024 23:01:58 +0200
+
+dracut (060+5-2) unstable; urgency=low
+
+  * set --systemdsystemunitdir from pkg-config, MR #32, Closes: #1057927
+  * split dracut-install into separate package for initramfs-tools, MR #27
+  * enable autopkgtest test suite, MR #24
+
+ -- Thomas Lange <lange@debian.org>  Sun, 31 Mar 2024 19:05:19 +0200
+
+dracut (060+5-1) unstable; urgency=medium
+
+  * upstream changed the release process, and do not tag the releases any
+    more
+  * 059+212 was already version 060+5
+  * add dracut-network.conffiles, Closes: 1057807
+
+ -- Thomas Lange <lange@debian.org>  Fri, 08 Dec 2023 21:09:47 +0100
+
+dracut (059+212-3) unstable; urgency=medium
+
+  * fix handling of dracut-version.sh
+
+ -- Thomas Lange <lange@debian.org>  Wed, 06 Dec 2023 14:36:26 +0100
+
+dracut (059+212-2) unstable; urgency=low
+
+  * debian/rules: use correct Debian version
+
+ -- Thomas Lange <lange@debian.org>  Wed, 06 Dec 2023 12:00:30 +0100
+
+dracut (059+212-1) unstable; urgency=low
+
+  * merge upstream changes, Closes: #1056059, #1041562, #1054400, #1016052
+
+ -- Thomas Lange <lange@debian.org>  Thu, 30 Nov 2023 22:10:02 +0100
+
+dracut (059-4) unstable; urgency=low
+
+  * Fix file name in patch initrd-not-initramfs.patch
+    Closes: #1029413, #1030191
+    Thanks to nabijaczleweli for the patch
+
+ -- Thomas Lange <lange@debian.org>  Thu, 09 Mar 2023 19:13:42 +0100
+
+dracut (059-3) unstable; urgency=low
+
+  * control: add breaks + replaces, Closes: #1028303
+
+ -- Thomas Lange <lange@debian.org>  Mon, 09 Jan 2023 20:56:29 +0100
+
+dracut (059-2) unstable; urgency=low
+
+  * add patches from Laszlo Gombos
+    dracut-live only depends on dracut-core not on dracut-network
+    overlayfs dracut module belongs to dracut-core and not to dracut-live
+    wicked dracut module is not supported by debian
+    remove multipath patch, no longer needed
+
+ -- Thomas Lange <lange@debian.org>  Sat, 07 Jan 2023 11:43:33 +0100
+
+dracut (059-1) unstable; urgency=low
+
+  * new upstream version
+  * control: new homepage, new standards version
+  * remove 10-debian.conf, build generic initrd by default
+  * rules: run script explicitly as shell, Closes: #1025378
+  * nm-path: fix more paths, Closes: #1016741
+  * patches/udevsettle: fix broken network in kvm in some cases
+  * remove dev-shm patch which is not needed, Closes: #1025996
+  * remove systemd-users patch, Closes: #1025951
+
+ -- Thomas Lange <lange@debian.org>  Sun, 25 Dec 2022 17:09:02 +0100
+
+dracut (057+157-4) unstable; urgency=low
+
+  * add missing module 90overlayfs
+
+ -- Thomas Lange <lange@debian.org>  Fri, 02 Dec 2022 16:19:16 +0100
+
+dracut (057+157-3) unstable; urgency=low
+
+  * control: add breaks and replaces, Closes: #1024435
+
+ -- Thomas Lange <lange@debian.org>  Sun, 20 Nov 2022 08:56:26 +0100
+
+dracut (057+157-2) unstable; urgency=low
+
+  * remove duplicate virtfs module, Closes: #1024390
+
+ -- Thomas Lange <lange@debian.org>  Fri, 18 Nov 2022 20:54:29 +0100
+
+dracut (057+157-1) unstable; urgency=low
+
+  * new upstream: Closes: #1023239, #1015922, #1016051, #1017411
+  * update initrd-not-initramfs.patch Closes: #1021229
+  * add patch for missing libz, Closes: #1016727
+  * add patch for Debian path in 35network-manager, Closes: #1016741
+
+ -- Thomas Lange <lange@debian.org>  Thu, 17 Nov 2022 21:48:24 +0100
+
+dracut (056-3) unstable; urgency=low
+
+  * new upstream, Closes: #991918
+  * control: Remove unnecessary constraints, demote pkg-config to
+    Recommends, Closes: #991920
+  * set Debian version in dracut-version.sh, Closes: #987320
+  * 90overlay-root/module-setup.sh: fix loading overlayfs kernel module
+
+ -- Thomas Lange <lange@debian.org>  Tue, 24 May 2022 21:29:13 +0200
+
+dracut (056-2) experimental; urgency=low
+
+  * Team upload.
+  * Fix conflict between dracut-{core,live,network} after failed amendment
+    of modules list
+
+ -- Dominik George <natureshadow@debian.org>  Wed, 11 May 2022 12:39:03 +0200
+
+dracut (056-1) experimental; urgency=low
+
+  * Team upload.
+  * New upstream version
+  * Refresh patches for dracut 056
+  * Update d/copyright
+    + Accounted for moved source files
+    + Accounted for source files written by authors not mentioned yet
+    + Accounted for a vendored Rust module (crosvm).
+  * Install all modules
+  * Install dracut-util
+
+ -- Dominik George <natureshadow@debian.org>  Tue, 10 May 2022 16:53:52 +0200
+
+dracut (055-1) experimental; urgency=low
+
+  [ Dominik George ]
+  * Team upload.
+  * New upstream version (Closes: #991918)
+
+  [ Andre Russ ]
+  * Refresh patches for dracut 055
+    + systemd needs more users in Debian
+    + crc32c patch was applied upstream
+    + several minor changes
+  * Update installed files
+    + Several docs were moved upstream
+    + mkinitrd was removed
+
+ -- Dominik George <natureshadow@debian.org>  Fri, 06 Aug 2021 11:36:31 +0200
+
 dracut (051-1) unstable; urgency=low
 
   * new upstream version

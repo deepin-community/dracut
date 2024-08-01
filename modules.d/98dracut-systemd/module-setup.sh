@@ -4,17 +4,15 @@
 check() {
     [[ $mount_needs ]] && return 1
 
-    if ! dracut_module_included "systemd-initrd"; then
-        derror "dracut-systemd needs systemd-initrd in the initramfs"
-        return 1
-    fi
+    # If the binary(s) requirements are not fulfilled the module can't be installed
+    require_binaries "$systemdutildir"/systemd || return 1
 
     return 0
 }
 
 # called by dracut
 depends() {
-    echo "systemd-initrd"
+    echo "systemd-initrd systemd-ask-password"
     return 0
 }
 
@@ -24,11 +22,10 @@ installkernel() {
 
 # called by dracut
 install() {
-    local _mods
     inst_script "$moddir/dracut-emergency.sh" /bin/dracut-emergency
-    inst_simple "$moddir/emergency.service" ${systemdsystemunitdir}/emergency.service
-    inst_simple "$moddir/dracut-emergency.service" ${systemdsystemunitdir}/dracut-emergency.service
-    inst_simple "$moddir/emergency.service" ${systemdsystemunitdir}/rescue.service
+    inst_simple "$moddir/emergency.service" "${systemdsystemunitdir}"/emergency.service
+    inst_simple "$moddir/dracut-emergency.service" "${systemdsystemunitdir}"/dracut-emergency.service
+    inst_simple "$moddir/emergency.service" "${systemdsystemunitdir}"/rescue.service
 
     ln_r "${systemdsystemunitdir}/initrd.target" "${systemdsystemunitdir}/default.target"
 
@@ -41,7 +38,9 @@ install() {
     inst_script "$moddir/dracut-mount.sh" /bin/dracut-mount
     inst_script "$moddir/dracut-pre-pivot.sh" /bin/dracut-pre-pivot
 
-    inst_script "$moddir/rootfs-generator.sh" $systemdutildir/system-generators/dracut-rootfs-generator
+    inst_script "$moddir/rootfs-generator.sh" "$systemdutildir"/system-generators/dracut-rootfs-generator
+
+    inst_hook cmdline 00 "$moddir/parse-root.sh"
 
     for i in \
         dracut-cmdline.service \
@@ -51,14 +50,12 @@ install() {
         dracut-pre-mount.service \
         dracut-pre-pivot.service \
         dracut-pre-trigger.service \
-        dracut-pre-udev.service \
-        ; do
+        dracut-pre-udev.service; do
         inst_simple "$moddir/${i}" "$systemdsystemunitdir/${i}"
-        systemctl -q --root "$initdir" add-wants initrd.target "$i"
+        $SYSTEMCTL -q --root "$initdir" add-wants initrd.target "$i"
     done
 
     inst_simple "$moddir/dracut-tmpfiles.conf" "$tmpfilesdir/dracut-tmpfiles.conf"
 
     inst_multiple sulogin
 }
-

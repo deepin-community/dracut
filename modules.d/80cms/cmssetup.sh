@@ -1,119 +1,52 @@
 #!/bin/bash
 
-type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
-
-function sysecho () {
-    file="$1"
-    shift
-    local i=1
-    while [ $i -le 10 ] ; do
-        if [ ! -f "$file" ]; then
-            sleep 1
-            i=$((i+1))
-        else
-            break
-        fi
-    done
-    local status
-    read status < "$file"
-    if [[ ! $status == $* ]]; then
-        [ -f "$file" ] && echo $* > "$file"
-    fi
-}
+type getarg > /dev/null 2>&1 || . /lib/dracut-lib.sh
+type zdev_parse_dasd_list > /dev/null 2>&1 || . /lib/s390-tools/zdev-from-dasd_mod.dasd
 
 function dasd_settle() {
-    local dasd_status=/sys/bus/ccw/devices/$1/status
-    if [ ! -f $dasd_status ]; then
+    local dasd_status
+    dasd_status=$(lszdev dasd "$1" --columns ATTRPATH:status --no-headings --active)
+    if [ ! -f "$dasd_status" ]; then
         return 1
     fi
     local i=1
-    while [ $i -le 60 ] ; do
+    while [ $i -le 60 ]; do
         local status
-        read status < $dasd_status
+        status=$(lszdev dasd "$1" --columns ATTR:status --no-headings --active)
         case $status in
-            online|unformatted)
-                return 0 ;;
+            online | unformatted)
+                return 0
+                ;;
             *)
                 sleep 0.1
-                i=$((i+1)) ;;
+                i=$((i + 1))
+                ;;
         esac
     done
     return 1
 }
 
-function dasd_settle_all() {
-    for dasdccw in $(while read line || [ -n "$line" ]; do echo "${line%%(*}"; done < /proc/dasd/devices) ; do
-        if ! dasd_settle $dasdccw ; then
-            echo $"Could not access DASD $dasdccw in time"
-            return 1
-        fi
-    done
-    return 0
-}
-
-# prints a canonocalized device bus ID for a given devno of any format
-function canonicalize_devno()
-{
-    case ${#1} in
-        3) echo "0.0.0${1}" ;;
-        4) echo "0.0.${1}" ;;
-        *) echo "${1}" ;;
-    esac
-    return 0
-}
-
 # read file from CMS and write it to /tmp
-function readcmsfile() # $1=dasdport $2=filename
-{
+function readcmsfile() { # $1=dasdport $2=filename
     local dev
-    local numcpus
     local devname
     local ret=0
     if [ $# -ne 2 ]; then return; fi
-    # precondition: udevd created dasda block device node
-    if ! dasd_cio_free -d $1 ; then
-        echo $"DASD $1 could not be cleared from device blacklist"
+    # precondition: udevd created block device node
+
+    dev="$1"
+    chzdev --enable --active --yes --quiet --no-root-update --force dasd "$dev" || return 1
+    if ! dasd_settle "$dev"; then
+        echo $"Could not access DASD $dev in time"
         return 1
     fi
 
-    modprobe dasd_mod dasd=$CMSDASD
-    modprobe dasd_eckd_mod
-    udevadm settle
+    devname=$(lszdev dasd "$dev" --columns NAMES --no-headings --active)
+    [[ -n $devname ]] || return 1
 
-    # precondition: dasd_eckd_mod driver incl. dependencies loaded,
-    #               dasd_mod must be loaded without setting any DASD online
-    dev=$(canonicalize_devno $1)
-    numcpus=$(
-        while read line || [ -n "$line" ]; do
-            if strstr "$line" "# processors"; then
-                echo ${line##*:};
-                break;
-            fi;
-        done < /proc/cpuinfo
-    )
-
-    if [ ${numcpus} -eq 1 ]; then
-        echo 1 > /sys/bus/ccw/devices/$dev/online
-    else
-        if ! sysecho /sys/bus/ccw/devices/$dev/online 1; then
-            echo $"DASD $dev could not be set online"
-            return 1
-        fi
-        udevadm settle
-        if ! dasd_settle $dev ; then
-            echo $"Could not access DASD $dev in time"
-            return 1
-        fi
-    fi
-
-    udevadm settle
-
-    devname=$(cd /sys/bus/ccw/devices/$dev/block; set -- *; [ -b /dev/$1 ] && echo $1)
-    devname=${devname:-dasda}
-
-    [[ -d /mnt ]] || mkdir /mnt
-    if cmsfs-fuse --to=UTF-8 -a /dev/$devname /mnt; then
-        cat /mnt/$2 > /run/initramfs/$2
+    [[ -d /mnt ]] || mkdir -p /mnt
+    if cmsfs-fuse --to=UTF-8 -a /dev/"$devname" /mnt; then
+        cat /mnt/"$2" > /run/initramfs/"$2"
         umount /mnt || umount -l /mnt
         udevadm settle
     else
@@ -121,16 +54,21 @@ function readcmsfile() # $1=dasdport $2=filename
         ret=1
     fi
 
-    if ! sysecho /sys/bus/ccw/devices/$dev/online 0; then
-        echo $"DASD $dev could not be set offline again"
-        #return 1
-    fi
-    udevadm settle
+    chzdev --disable --active --yes --quiet --no-root-update --force dasd "$dev"
 
     # unbind all dasds to unload the dasd modules for a clean start
-    ( cd /sys/bus/ccw/drivers/dasd-eckd; for i in *.*; do echo $i > unbind;done)
+    (
+        cd /sys/bus/ccw/drivers/dasd-eckd || exit
+        for i in *.*; do echo "$i" > unbind 2> /dev/null; done
+    )
+    (
+        cd /sys/bus/ccw/drivers/dasd-fba || exit
+        for i in *.*; do echo "$i" > unbind 2> /dev/null; done
+    )
     udevadm settle
     modprobe -r dasd_eckd_mod
+    udevadm settle
+    modprobe -r dasd_fba_mod
     udevadm settle
     modprobe -r dasd_diag_mod
     udevadm settle
@@ -139,23 +77,28 @@ function readcmsfile() # $1=dasdport $2=filename
     return $ret
 }
 
-processcmsfile()
-{
+processcmsfile() {
     source /tmp/cms.conf
-    SUBCHANNELS="$(echo $SUBCHANNELS | sed 'y/ABCDEF/abcdef/')"
+    SUBCHANNELS="$(echo "$SUBCHANNELS" | sed 'y/ABCDEF/abcdef/')"
 
     if [[ $NETTYPE ]]; then
-        (
-            echo -n $NETTYPE,$SUBCHANNELS
-            [[ $PORTNAME ]] && echo -n ",portname=$PORTNAME"
-            [[ $LAYER2 ]] && echo -n ",layer2=$LAYER2"
-            [[ "$NETTYPE" = "ctc" ]] && [[ $CTCPROT ]] && echo -n ",protocol=$CTCPROT"
-            echo
-        ) >> /etc/ccw.conf
+        _cms_attrs=""
+        if [[ $PORTNAME ]]; then
+            if [[ $NETTYPE == lcs ]]; then
+                _cms_attrs="$_cms_attrs portno=$PORTNAME"
+            else
+                _cms_attrs="$_cms_attrs portname=$PORTNAME"
+            fi
+        fi
+        [[ $LAYER2 ]] && _cms_attrs="$_cms_attrs layer2=$LAYER2"
+        [[ $CTCPROT ]] && _cms_attrs="$_cms_attrs protocol=$CTCPROT"
+        # shellcheck disable=SC2086
+        chzdev --enable --persistent --yes --no-root-update --force \
+            "$NETTYPE" "$SUBCHANNELS" $_cms_attrs 2>&1 | vinfo
 
         OLDIFS=$IFS
         IFS=,
-        read -a subch_array <<< "indexzero,$SUBCHANNELS"
+        read -r -a subch_array <<< "indexzero,$SUBCHANNELS"
         IFS=$OLDIFS
         devbusid=${subch_array[1]}
         if [ "$NETTYPE" = "ctc" ]; then
@@ -164,27 +107,26 @@ processcmsfile()
             driver=$NETTYPE
         fi
 
+        # shellcheck disable=SC2016
         printf 'SUBSYSTEM=="net", ACTION=="add", DRIVERS=="%s", KERNELS=="%s", ENV{INTERFACE}=="?*", RUN+="/sbin/initqueue --onetime --unique --name cmsifup-$name /sbin/cmsifup $name"\n' "$driver" "$devbusid" > /etc/udev/rules.d/99-cms.rules
         # remove the default net rules
         rm -f -- /etc/udev/rules.d/91-default-net.rules
+        # shellcheck disable=SC2016
         [[ -f /etc/udev/rules.d/90-net.rules ]] \
             || printf 'SUBSYSTEM=="net", ACTION=="online", RUN+="/sbin/initqueue --onetime --env netif=$name source_hook initqueue/online"\n' >> /etc/udev/rules.d/99-cms.rules
         udevadm control --reload
-        znet_cio_free
     fi
 
     if [[ $DASD ]] && [[ $DASD != "none" ]]; then
-        echo $DASD | normalize_dasd_arg > /etc/dasd.conf
-        echo "options dasd_mod dasd=$DASD" > /etc/modprobe.d/dasd_mod.conf
-        dasd_cio_free
+        echo "$DASD" | zdev_parse_dasd_list globals 2>&1 | vinfo
+        echo "$DASD" | zdev_parse_dasd_list ranges 2>&1 | vinfo
     fi
 
-    unset _do_zfcp
     for i in ${!FCP_*}; do
-        echo "${!i}" | while read port rest || [ -n "$port" ]; do
+        echo "${!i}" | while read -r port rest || [ -n "$port" ]; do
             case $port in
-                *.*.*)
-                    ;;
+                *.*.*) ;;
+
                 *.*)
                     port="0.$port"
                     ;;
@@ -192,22 +134,34 @@ processcmsfile()
                     port="0.0.$port"
                     ;;
             esac
-            echo $port $rest >> /etc/zfcp.conf
+            # shellcheck disable=SC2086
+            set -- $rest
+            SAVED_IFS="$IFS"
+            IFS=":"
+            # Intentionally do not dynamically activate now, but only generate udev
+            # rules, which activate the device later during udev coldplug.
+            if [[ -z $rest ]]; then
+                chzdev --enable --persistent \
+                    --no-settle --yes --quiet --no-root-update --force \
+                    zfcp-host "$port" 2>&1 | vinfo
+            else
+                chzdev --enable --persistent \
+                    --no-settle --yes --quiet --no-root-update --force \
+                    zfcp-lun "$port:$*" 2>&1 | vinfo
+            fi
+            IFS="$SAVED_IFS"
         done
-        _do_zfcp=1
     done
-    [[ $_do_zfcp ]] && zfcp_cio_free
-    unset _do_zfcp
 }
 
 [[ $CMSDASD ]] || CMSDASD=$(getarg "CMSDASD=")
 [[ $CMSCONFFILE ]] || CMSCONFFILE=$(getarg "CMSCONFFILE=")
 
 # Parse configuration
-if [ -n "$CMSDASD" -a -n "$CMSCONFFILE" ]; then
-    if readcmsfile $CMSDASD $CMSCONFFILE; then
-        ln -s /run/initramfs/$CMSCONFFILE /tmp/$CMSCONFFILE
-        ln -s /run/initramfs/$CMSCONFFILE /tmp/cms.conf
+if [ -n "$CMSDASD" ] && [ -n "$CMSCONFFILE" ]; then
+    if readcmsfile "$CMSDASD" "$CMSCONFFILE"; then
+        ln -s /run/initramfs/"$CMSCONFFILE" /tmp/"$CMSCONFFILE"
+        ln -s /run/initramfs/"$CMSCONFFILE" /tmp/cms.conf
         processcmsfile
     fi
 fi

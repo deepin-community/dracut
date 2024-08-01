@@ -1,7 +1,3 @@
-vconsole
-microcode
-crc32c
-plymouth
-multipath
-initrd-not-initramfs.patch
-dev-shm-mount
+udevsettle
+nm-path
+debian-initramfs-post-update.patch
