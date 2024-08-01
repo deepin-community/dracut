@@ -8,7 +8,7 @@ check() {
 
 # called by dracut
 depends() {
-    return 0
+    echo base bash
 }
 
 # called by dracut
@@ -17,4 +17,3 @@ install() {
     inst_hook pre-pivot 99 "$moddir/do-convertfs.sh"
     inst_script "$moddir/convertfs.sh" /usr/bin/convertfs
 }
-

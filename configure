@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # We don't support srcdir != builddir
-echo \#buildapi-variable-no-builddir >/dev/null
+echo \#buildapi-variable-no-builddir > /dev/null
 
 prefix=/usr
 
 enable_documentation=yes
+enable_dracut_cpio=no
 
 CC="${CC:-cc}"
 PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
@@ -19,9 +20,9 @@ read_arg() {
     # $3 = arg parameter
     local rematch='^[^=]*=(.*)$'
     if [[ $2 =~ $rematch ]]; then
-        read "$1" <<< "${BASH_REMATCH[1]}"
+        read -r "$1" <<< "${BASH_REMATCH[1]}"
     else
-        read "$1" <<< "$3"
+        read -r "$1" <<< "$3"
         # There is no way to shift our callers args, so
         # return 1 to indicate they should do it instead.
         return 1
@@ -31,24 +32,25 @@ read_arg() {
 
 while (($# > 0)); do
     case "${1%%=*}" in
-        --prefix) read_arg prefix "$@" || shift;;
-        --libdir) read_arg libdir "$@" || shift;;
-        --datadir) read_arg datadir "$@" || shift;;
-        --sysconfdir) read_arg sysconfdir "$@" || shift;;
-        --sbindir) read_arg sbindir "$@" || shift;;
-        --mandir) read_arg mandir "$@" || shift;;
-        --disable-documentation) enable_documentation=no;;
-        --program-prefix) read_arg programprefix "$@" || shift;;
-        --exec-prefix) read_arg execprefix "$@" || shift;;
-        --bindir) read_arg bindir "$@" || shift;;
-        --includedir) read_arg includedir "$@" || shift;;
-        --libexecdir) read_arg libexecdir "$@" || shift;;
-        --localstatedir) read_arg localstatedir "$@" || shift;;
-        --sharedstatedir) read_arg sharedstatedir "$@" || shift;;
-        --infodir) read_arg infodir "$@" || shift;;
-        --systemdsystemunitdir) read_arg systemdsystemunitdir "$@" || shift;;
-        --bashcompletiondir) read_arg bashcompletiondir "$@" || shift;;
-        *) echo "Ignoring unknown option '$1'";;
+        --prefix) read_arg prefix "$@" || shift ;;
+        --libdir) read_arg libdir "$@" || shift ;;
+        --datadir) read_arg datadir "$@" || shift ;;
+        --sysconfdir) read_arg sysconfdir "$@" || shift ;;
+        --sbindir) read_arg sbindir "$@" || shift ;;
+        --mandir) read_arg mandir "$@" || shift ;;
+        --disable-documentation) enable_documentation=no ;;
+        --program-prefix) read_arg programprefix "$@" || shift ;;
+        --exec-prefix) read_arg execprefix "$@" || shift ;;
+        --bindir) read_arg bindir "$@" || shift ;;
+        --includedir) read_arg includedir "$@" || shift ;;
+        --libexecdir) read_arg libexecdir "$@" || shift ;;
+        --localstatedir) read_arg localstatedir "$@" || shift ;;
+        --sharedstatedir) read_arg sharedstatedir "$@" || shift ;;
+        --infodir) read_arg infodir "$@" || shift ;;
+        --systemdsystemunitdir) read_arg systemdsystemunitdir "$@" || shift ;;
+        --bashcompletiondir) read_arg bashcompletiondir "$@" || shift ;;
+        --enable-dracut-cpio) enable_dracut_cpio=yes ;;
+        *) echo "Ignoring unknown option '$1'" ;;
     esac
     shift
 done
@@ -58,24 +60,30 @@ if ! ${PKG_CONFIG} --exists --print-errors " libkmod >= 23 "; then
     exit 1
 fi
 
-cat <<EOF >conftest.c
+if ! ${CC} -c -o /dev/null /dev/null &> /dev/null; then
+    echo "dracut needs a C compiler (${CC} not found)." >&2
+    exit 1
+fi
+
+cat << EOF > conftest.c
 #include <fts.h>
 int main() {
 	return 0;
 }
 EOF
 
-${CC} $CFLAGS $LDFLAGS conftest.c >/dev/null 2>&1
+# shellcheck disable=SC2086
+${CC} $CFLAGS $LDFLAGS conftest.c > /dev/null 2>&1
 ret=$?
 rm -f conftest.c a.out
 
 # musl doesn't have fts.h included
 if test $ret -ne 0; then
-	echo "dracut needs fts development files." >&2
-	exit 1
+    echo "dracut needs fts development files." >&2
+    exit 1
 fi
 
-cat <<EOF >conftest.c
+cat << EOF > conftest.c
 #include <fts.h>
 int main(void) {
 	fts_open(0, 0, 0);
@@ -85,22 +93,79 @@ EOF
 
 found=no
 for lib in "-lc" "-lfts"; do
-	${CC} $CFLAGS $LDFLAGS conftest.c -Wl,$lib >/dev/null 2>&1
-	ret=$?
-	if test $ret -eq 0; then
-		FTS_LIBS="$lib"
-		found=yes
-		break;
-	fi
+    # shellcheck disable=SC2086
+    ${CC} $CFLAGS $LDFLAGS conftest.c -Wl,$lib > /dev/null 2>&1
+    ret=$?
+    if test $ret -eq 0; then
+        FTS_LIBS="$lib"
+        found=yes
+        break
+    fi
 done
 rm -f conftest.c a.out
 
 if test $found = no; then
-	echo "dracut couldn't find usable fts library" >&2
-	exit 1
+    echo "dracut couldn't find usable fts library" >&2
+    exit 1
 fi
 
-cat > Makefile.inc.$$ <<EOF
+cat << EOF > conftest.c
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+#ifndef SYS_gettid
+#error "SYS_gettid unavailable on this system"
+#endif
+
+#define gettid()    ((pid_t) syscall(SYS_gettid))
+
+int main(void) {
+  return getpid() == gettid() ? 0 : -1;
+}
+EOF
+
+# shellcheck disable=SC2086
+${CC} $CFLAGS $LDFLAGS conftest.c > /dev/null 2>&1
+ret=$?
+rm -f conftest.c a.out
+
+if test $ret -ne 0; then
+    echo "dracut needs SYS_gettid support." >&2
+    exit 1
+fi
+
+if test "$enable_dracut_cpio" = "yes"; then
+    cargo --version > /dev/null
+    ret=$?
+    if test $ret -ne 0; then
+        echo "dracut couldn't find cargo for dracut-cpio build"
+        exit 1
+    fi
+fi
+
+cat << EOF > weakdep_test.c
+#include <stddef.h>
+#include <libkmod.h>
+
+int main(void) {
+  struct kmod_module *mod = NULL;
+  struct kmod_list *modweak = NULL;
+
+  return kmod_module_get_weakdeps(mod, &modweak);
+}
+EOF
+
+# shellcheck disable=SC2086,SC2046
+${CC} $CFLAGS $LDFLAGS weakdep_test.c $(${PKG_CONFIG} --libs libkmod) > /dev/null 2>&1
+ret=$?
+rm -f weakdep_test.c a.out
+
+if test $ret -eq 0; then
+    KMOD_CFLAGS_EXTRA+=" -DCONFIG_WEAKDEP"
+fi
+
+cat > Makefile.inc.$$ << EOF
 prefix ?= ${prefix}
 libdir ?= ${libdir:-${prefix}/lib}
 datadir ?= ${datadir:-${prefix}/share}
@@ -108,8 +173,9 @@ sysconfdir ?= ${sysconfdir:-${prefix}/etc}
 sbindir ?= ${sbindir:-${prefix}/sbin}
 mandir ?= ${mandir:-${prefix}/share/man}
 enable_documentation ?= ${enable_documentation:-yes}
+enable_dracut_cpio ?= ${enable_dracut_cpio}
 bindir ?= ${bindir:-${prefix}/bin}
-KMOD_CFLAGS ?= $(${PKG_CONFIG} --cflags " libkmod >= 23 ")
+KMOD_CFLAGS ?= $(${PKG_CONFIG} --cflags " libkmod >= 23 ") ${KMOD_CFLAGS_EXTRA}
 KMOD_LIBS ?= $(${PKG_CONFIG} --libs " libkmod >= 23 ")
 FTS_LIBS ?= ${FTS_LIBS}
 EOF

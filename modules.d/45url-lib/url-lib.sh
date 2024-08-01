@@ -4,7 +4,7 @@
 # Authors:
 #   Will Woods <wwoods@redhat.com>
 
-type mkuniqdir >/dev/null 2>&1 || . /lib/dracut-lib.sh
+type mkuniqdir > /dev/null 2>&1 || . /lib/dracut-lib.sh
 
 # fetch_url URL [OUTFILE]
 #   fetch the given URL to a locally-visible location.
@@ -16,11 +16,12 @@ type mkuniqdir >/dev/null 2>&1 || . /lib/dracut-lib.sh
 #   0: success
 #   253: unknown error (file missing)
 #   254: unhandled URL scheme / protocol
-#   255: bad arguments / unparseable URLs
+#   255: bad arguments / unparsable URLs
 #   other: fetch command failure (whatever curl/mount/etc return)
 fetch_url() {
     local url="$1" outloc="$2"
-    local handler="$(get_url_handler $url)"
+    local handler
+    handler="$(get_url_handler "$url")"
     [ -n "$handler" ] || return 254
     [ -n "$url" ] || return 255
     "$handler" "$url" "$outloc"
@@ -39,22 +40,23 @@ get_url_handler() {
 # add_url_handler HANDLERNAME SCHEME [SCHEME...]
 #   associate the named handler with the named scheme(s).
 add_url_handler() {
-    local handler="$1"; shift
-    local schemes="$@" scheme=""
+    local handler="$1"
+    shift
+    local schemes="$*" scheme=""
     set --
     for scheme in $schemes; do
-        [ "$(get_url_handler $scheme)" = "$handler" ] && continue
+        [ "$(get_url_handler "$scheme")" = "$handler" ] && continue
         set -- "$@" "$scheme:$handler"
     done
-    set -- $@ $url_handler_map # add new items to *front* of list
-    url_handler_map="$@"
+    set -- "$@" "$url_handler_map" # add new items to *front* of list
+    url_handler_map="$*"
 }
 
 ### HTTP, HTTPS, FTP #################################################
 
 export CURL_HOME="/run/initramfs/url-lib"
 mkdir -p $CURL_HOME
-curl_args="--globoff --location --retry 3 --fail --show-error"
+curl_args="--globoff --location --retry 3 --retry-connrefused --fail --show-error"
 getargbool 0 rd.noverifyssl && curl_args="$curl_args --insecure"
 
 proxy=$(getarg proxy=)
@@ -64,17 +66,23 @@ curl_fetch_url() {
     local url="$1" outloc="$2"
     echo "$url" > /proc/self/fd/0
     if [ -n "$outloc" ]; then
-        curl $curl_args --output - -- "$url" > "$outloc" || return $?
+        # shellcheck disable=SC2086
+        curl $curl_args --output "$outloc" -- "$url" || return $?
     else
-        local outdir="$(mkuniqdir /tmp curl_fetch_url)"
-        ( cd "$outdir"; curl $curl_args --remote-name "$url" || return $? )
-        outloc="$outdir/$(ls -A $outdir)"
+        local outdir
+        outdir="$(mkuniqdir /tmp curl_fetch_url)"
+        (
+            cd "$outdir" || exit
+            # shellcheck disable=SC2086
+            curl $curl_args --remote-name "$url" || return $?
+        )
+        outloc="$outdir/$(ls -A "$outdir")"
     fi
     if ! [ -f "$outloc" ]; then
-	    warn "Downloading '$url' failed!"
-	    return 253
+        warn "Downloading '$url' failed!"
+        return 253
     fi
-    if [ -z "$2" ]; then echo "$outloc" ; fi
+    if [ -z "$2" ]; then echo "$outloc"; fi
 }
 add_url_handler curl_fetch_url http https ftp tftp
 
@@ -92,26 +100,33 @@ ctorrent_fetch_url() {
     torrent_outloc="$outloc.torrent"
     echo "$url" > /proc/self/fd/0
     if [ -n "$outloc" ]; then
-        curl $curl_args --output - -- "$url" > "$torrent_outloc" || return $?
+        # shellcheck disable=SC2086
+        curl $curl_args --output "$torrent_outloc" -- "$url" || return $?
     else
-        local outdir="$(mkuniqdir /tmp torrent_fetch_url)"
-        ( cd "$outdir"; curl $curl_args --remote-name "$url" || return $? )
-        torrent_outloc="$outdir/$(ls -A $outdir)"
+        local outdir
+        outdir="$(mkuniqdir /tmp torrent_fetch_url)"
+        (
+            cd "$outdir" || exit
+            # shellcheck disable=SC2086
+            curl $curl_args --remote-name "$url" || return $?
+        )
+        torrent_outloc="$outdir/$(ls -A "$outdir")"
         outloc=${torrent_outloc%.*}
     fi
     if ! [ -f "$torrent_outloc" ]; then
         warn "Downloading '$url' failed!"
         return 253
     fi
-    ctorrent $ctorrent_args -s $outloc $torrent_outloc >&2
+    # shellcheck disable=SC2086
+    ctorrent $ctorrent_args -s "$outloc" "$torrent_outloc" >&2
     if ! [ -f "$outloc" ]; then
         warn "Torrent download of '$url' failed!"
         return 253
     fi
-    if [ -z "$2" ]; then echo "$outloc" ; fi
+    if [ -z "$2" ]; then echo "$outloc"; fi
 }
 
-command -v ctorrent >/dev/null \
+command -v ctorrent > /dev/null \
     && add_url_handler ctorrent_fetch_url torrent
 
 ### NFS ##############################################################
@@ -119,17 +134,18 @@ command -v ctorrent >/dev/null \
 [ -e /lib/nfs-lib.sh ] && . /lib/nfs-lib.sh
 
 nfs_already_mounted() {
-    local server="$1" path="$2" localdir="" s="" p=""
-    cat /proc/mounts | while read src mnt rest || [ -n "$src" ]; do
+    local server="$1" path="$2" s="" p=""
+    while read -r src mnt rest || [ -n "$src" ]; do
         splitsep ":" "$src" s p
+        p=${p%/}
         if [ "$server" = "$s" ]; then
             if [ "$path" = "$p" ]; then
-                echo $mnt
+                echo "$mnt"
             elif str_starts "$path" "$p"; then
-                echo $mnt/${path#$p/}
+                echo "$mnt"/"${path#"$p"/}"
             fi
         fi
-    done
+    done < /proc/mounts
 }
 
 nfs_fetch_url() {
@@ -138,12 +154,13 @@ nfs_fetch_url() {
     local filepath="${path%/*}" filename="${path##*/}" mntdir=""
 
     # skip mount if server:/filepath is already mounted
-    mntdir=$(nfs_already_mounted "$server" "$path")
+    mntdir=$(nfs_already_mounted "$server" "$filepath")
     if [ -z "$mntdir" ]; then
-        local mntdir="$(mkuniqdir /run nfs_mnt)"
+        local mntdir
+        mntdir="$(mkuniqdir /run nfs_mnt)"
         mount_nfs "$nfs:$server:$filepath${options:+:$options}" "$mntdir"
         # lazy unmount during pre-pivot hook
-        inst_hook --hook pre-pivot --name 99url-lib-umount-nfs umount -l -- "$mntdir"
+        inst_hook --hook pre-pivot --name 99url-lib-umount-nfs-"$(basename "$mntdir")" umount -l -- "$mntdir"
     fi
 
     if [ -z "$outloc" ]; then
@@ -152,6 +169,6 @@ nfs_fetch_url() {
         cp -f -- "$mntdir/$filename" "$outloc" || return $?
     fi
     [ -f "$outloc" ] || return 253
-    if [ -z "$2" ]; then echo "$outloc" ; fi
+    if [ -z "$2" ]; then echo "$outloc"; fi
 }
-command -v nfs_to_var >/dev/null && add_url_handler nfs_fetch_url nfs nfs4
+command -v nfs_to_var > /dev/null && add_url_handler nfs_fetch_url nfs nfs4

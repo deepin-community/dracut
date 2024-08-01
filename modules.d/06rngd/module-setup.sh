@@ -18,11 +18,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-depends() {
-    echo systemd
-    return 0
-}
-
 check() {
     # if there's no rngd binary, no go.
     require_binaries rngd || return 1
@@ -30,11 +25,16 @@ check() {
     return 0
 }
 
+depends() {
+    echo systemd
+    return 0
+}
+
 install() {
     inst rngd
     inst_simple "${moddir}/rngd.service" "${systemdsystemunitdir}/rngd.service"
-    # make sure dependant libs are installed too
+    # make sure dependent libs are installed too
     inst_libdir_file opensc-pkcs11.so
 
-    systemctl -q --root "$initdir" add-wants sysinit.target rngd.service
+    $SYSTEMCTL -q --root "$initdir" add-wants sysinit.target rngd.service
 }

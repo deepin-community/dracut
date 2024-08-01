@@ -1,10 +1,9 @@
 #!/bin/sh
 
-type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
-type det_fs >/dev/null 2>&1 || . /lib/fs-lib.sh
+type getarg > /dev/null 2>&1 || . /lib/dracut-lib.sh
+type det_fs > /dev/null 2>&1 || . /lib/fs-lib.sh
 
 mount_root() {
-    local _ret
     local _rflags_ro
     # sanity - determine/fix fstype
     rootfs=$(det_fs "${root#block:}" "$fstype")
@@ -19,46 +18,39 @@ mount_root() {
                 fsckoptions="-j $journaldev $fsckoptions"
                 rflags="${rflags:+${rflags},}jdev=$journaldev"
                 ;;
-            *);;
+            *) ;;
         esac
     fi
 
     _rflags_ro="$rflags,ro"
     _rflags_ro="${_rflags_ro##,}"
 
-    while ! mount -t ${rootfs} -o "$_rflags_ro" "${root#block:}" "$NEWROOT"; do
+    while ! mount -t "${rootfs}" -o "$_rflags_ro" "${root#block:}" "$NEWROOT"; do
         warn "Failed to mount -t ${rootfs} -o $_rflags_ro ${root#block:} $NEWROOT"
         fsck_ask_err
     done
 
-    READONLY=
     fsckoptions=
     if [ -f "$NEWROOT"/etc/sysconfig/readonly-root ]; then
+        # shellcheck disable=SC1090
         . "$NEWROOT"/etc/sysconfig/readonly-root
     fi
 
-    if getargbool 0 "readonlyroot=" -y readonlyroot; then
-        READONLY=yes
-    fi
-
-    if getarg noreadonlyroot ; then
-        READONLY=no
-    fi
-
-    if [ -f "$NEWROOT"/fastboot ] || getargbool 0 fastboot ; then
+    if [ -f "$NEWROOT"/fastboot ]; then
         fastboot=yes
     fi
 
     if ! getargbool 0 rd.skipfsck; then
         if [ -f "$NEWROOT"/fsckoptions ]; then
-            fsckoptions=$(cat "$NEWROOT"/fsckoptions)
+            read -r fsckoptions < "$NEWROOT"/fsckoptions
         fi
 
-        if [ -f "$NEWROOT"/forcefsck ] || getargbool 0 forcefsck ; then
+        if [ -f "$NEWROOT"/forcefsck ] || getargbool 0 forcefsck; then
             fsckoptions="-f $fsckoptions"
         elif [ -f "$NEWROOT"/.autofsck ]; then
-            [ -f "$NEWROOT"/etc/sysconfig/autofsck ] && \
-                . "$NEWROOT"/etc/sysconfig/autofsck
+            # shellcheck disable=SC1090
+            [ -f "$NEWROOT"/etc/sysconfig/autofsck ] \
+                && . "$NEWROOT"/etc/sysconfig/autofsck
             if [ "$AUTOFSCK_DEF_CHECK" = "yes" ]; then
                 AUTOFSCK_OPT="$AUTOFSCK_OPT -f"
             fi
@@ -74,14 +66,14 @@ mount_root() {
 
     rootopts=
     if getargbool 1 rd.fstab -d -n rd_NO_FSTAB \
-        && ! getarg rootflags >/dev/null \
+        && ! getarg rootflags > /dev/null \
         && [ -f "$NEWROOT/etc/fstab" ] \
         && ! [ -L "$NEWROOT/etc/fstab" ]; then
         # if $NEWROOT/etc/fstab contains special mount options for
         # the root filesystem,
         # remount it with the proper options
         rootopts="defaults"
-        while read dev mp fs opts dump fsck || [ -n "$dev" ]; do
+        while read -r dev mp fs opts _ fsck || [ -n "$dev" ]; do
             # skip comments
             [ "${dev%%#*}" != "$dev" ] && continue
 
@@ -105,15 +97,12 @@ mount_root() {
     # esc_root=$(echo ${root#block:} | sed 's,\\,\\\\,g')
     # printf '%s %s %s %s 1 1 \n' "$esc_root" "$NEWROOT" "$rootfs" "$rflags" >/etc/fstab
 
-    ran_fsck=0
-    if fsck_able "$rootfs" && \
-        [ "$rootfsck" != "0" -a -z "$fastboot" -a "$READONLY" != "yes" ] && \
-            ! strstr "${rflags}" _netdev && \
-            ! getargbool 0 rd.skipfsck; then
+    if ! getargbool 0 ro && fsck_able "$rootfs" \
+        && [ "$rootfsck" != "0" ] && [ -z "$fastboot" ] \
+        && ! strstr "${rflags}" _netdev \
+        && ! getargbool 0 rd.skipfsck; then
         umount "$NEWROOT"
         fsck_single "${root#block:}" "$rootfs" "$rflags" "$fsckoptions"
-        _ret=$?
-        ran_fsck=1
     fi
 
     echo "${root#block:} $NEWROOT $rootfs ${rflags:-defaults} 0 ${rootfsck:-0}" >> /etc/fstab
@@ -127,11 +116,11 @@ mount_root() {
     fi
 
     if ! getargbool 0 rd.skipfsck; then
-        [ -f "$NEWROOT"/forcefsck ] && rm -f -- "$NEWROOT"/forcefsck 2>/dev/null
-        [ -f "$NEWROOT"/.autofsck ] && rm -f -- "$NEWROOT"/.autofsck 2>/dev/null
+        [ -f "$NEWROOT"/forcefsck ] && rm -f -- "$NEWROOT"/forcefsck 2> /dev/null
+        [ -f "$NEWROOT"/.autofsck ] && rm -f -- "$NEWROOT"/.autofsck 2> /dev/null
     fi
 }
 
-if [ -n "$root" -a -z "${root%%block:*}" ]; then
+if [ -n "$root" ] && [ -z "${root%%block:*}" ]; then
     mount_root
 fi

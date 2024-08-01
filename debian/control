@@ -2,17 +2,17 @@ Source: dracut
 Section: utils
 Priority: optional
 Maintainer: Thomas Lange <lange@debian.org>
-Build-Depends: debhelper-compat (= 12), debhelper, asciidoc-base, xsltproc, docbook-xsl, docbook-xml, quilt, libkmod-dev, pkg-config
-Standards-Version: 4.5.0
+Build-Depends: debhelper-compat (= 12), debhelper, asciidoc-base, xsltproc, docbook-xsl, docbook-xml, quilt, libkmod-dev, pkgconf, systemd-dev
+Standards-Version: 4.6.2
 Vcs-Browser: https://salsa.debian.org/debian/dracut
 Vcs-Git: https://salsa.debian.org/debian/dracut.git
-Homepage: http://www.kernel.org/pub/linux/utils/boot/dracut/dracut.html
+Homepage: https://github.com/dracut-ng/dracut-ng/wiki
 
 Package: dracut
 Architecture: all
 Multi-Arch: foreign
 Suggests: dracut-network
-Depends: dracut-core (>= ${binary:Version}), dracut-core (<< ${binary:Version}+b+~)
+Depends: dracut-core (>= ${binary:Version}), dracut-core (<< ${binary:Version}+b+~), ${misc:Depends}
 Provides: linux-initramfs-tool
 Conflicts: initramfs-tools, live-tools
 Description: Initramfs generator using udev
@@ -23,10 +23,10 @@ Description: Initramfs generator using udev
 Package: dracut-core
 Architecture: any
 Multi-Arch: foreign
-Recommends: cryptsetup, dmsetup, dmraid, lvm2, mdadm, console-setup, binutils, systemd, pigz
-Depends: bash (>= 4), cpio, kmod, udev, kpartx, util-linux (>= 2.20), pkg-config, libkmod2, e2fsprogs, ${shlibs:Depends}, ${misc:Depends}
-Breaks: dracut-network (<< 043-2), dracut (<< 044+3-2~)
-Replaces: dracut-network (<< 043-2), dracut (<< 044+3-2~)
+Recommends: cryptsetup, dmsetup, dmraid, kpartx, lvm2, mdadm, console-setup, binutils, systemd, pigz, pkgconf
+Depends: cpio, dracut-install, kmod, udev, libkmod2, e2fsprogs, ${shlibs:Depends}, ${misc:Depends}
+Breaks: dracut-network (<< 057+157-2), dracut-live (<< 059-2)
+Replaces: dracut-network (<< 057+157-2), dracut-live (<< 059-2)
 Description: dracut is an event driven initramfs infrastructure (core tools)
  Unlike existing initramfs's, this is an attempt at having as little as
  possible hard-coded into the initramfs as possible.  The initramfs has
@@ -38,10 +38,19 @@ Description: dracut is an event driven initramfs infrastructure (core tools)
  Having the root on MD, LVM2, LUKS is supported as well as NFS, iSCSI,
  NBD and FCOE with dracut-network.
 
+Package: dracut-install
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Breaks: dracut-core (<< 060+5-7~)
+Replaces: dracut-core (<< 060+5-7~)
+Description: dracut is an event driven initramfs infrastructure (dracut-install)
+ This package just contains the dracut-install command to be used by
+ initramfs generating tools.
+
 Package: dracut-network
 Architecture: all
 Recommends: nfs-common, open-iscsi, nbd-client, curl
-Depends: dracut-core, iputils-arping, isc-dhcp-client, ${misc:Depends}
+Depends: dracut-core, iputils-arping, isc-dhcp-client | systemd | connman | network-manager, ${misc:Depends}
 Description: dracut is an event driven initramfs infrastructure (network modules)
  Package to build a dracut initramfs with network support. This
  includes dracut modules for NFS, CIFS, iSCSI, HTTP, NBD, FCP and FCOE.
@@ -60,7 +69,8 @@ Description: dracut is an event driven initramfs infrastructure (squashfs module
 
 Package: dracut-live
 Architecture: all
-Depends: dracut-network, curl, dmsetup, ${misc:Depends}
+Recommends: dracut-network
+Depends: dracut-core, dmsetup, ${misc:Depends}
 Breaks: dracut-network (<< 050-1), dracut-core (<< 050-1)
 Replaces: dracut-network (<< 050-1), dracut-core (<< 050-1)
 Description: dracut is an event driven initramfs infrastructure (live image modules)
@@ -71,12 +81,14 @@ Description: dracut is an event driven initramfs infrastructure (live image modu
 
 Package: dracut-config-generic
 Architecture: all
-Depends: dracut-core
+Depends: dracut-core, ${misc:Depends}
+Multi-Arch: foreign
 Description: dracut is an event driven initramfs infrastructure
  This is the dracut configuration to turn off hostonly image generation
 
 Package: dracut-config-rescue
 Architecture: all
-Depends: dracut-core
+Depends: dracut-core, ${misc:Depends}
+Multi-Arch: foreign
 Description: dracut is an event driven initramfs infrastructure
  This is the dracut configuration to turn on rescue image generation
