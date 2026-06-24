@@ -1,3 +1,4 @@
 udevsettle
 nm-path
 debian-initramfs-post-update.patch
+fix-CVE-2026-6893-dhcp-command-injection.patch

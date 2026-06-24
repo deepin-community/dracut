@@ -1,3 +1,12 @@
+dracut (103-1deepin1) unstable; urgency=medium
+
+  * Fix command injection via DHCP options (CVE-2026-6893)
+    - Use printf with %q escaping for shell scripts generated from
+      DHCP-provided values (hostname, gateway, root path, next server)
+    - Add defensive check in net-lib.sh for suspicious shell metacharacters
+
+ -- deepin-ci-robot <packages@deepin.org>  Tue, 24 Jun 2026 19:47:00 +0800
+
 dracut (103-1) unstable; urgency=low
 
   * new upstream version 103
@@ -763,3 +772,12 @@ dracut (002-1) unreleased; urgency=low
   * Version 002
 
  -- Philippe Seewer <philippe.seewer@bfh.ch>  Fri, 27 Nov 2009 15:52:00 +0100
+dracut (103-1deepin1) unstable; urgency=medium
+
+  * Fix command injection via DHCP options (CVE-2026-6893)
+    - Use printf with %%q escaping for shell scripts generated from
+      DHCP-provided values (hostname, gateway, root path, next server)
+    - Add defensive check in net-lib.sh for suspicious shell metacharacters
+
+ -- deepin-ci-robot <packages@deepin.org>  Tue, 24 Jun 2026 19:47:00 +0800
+
