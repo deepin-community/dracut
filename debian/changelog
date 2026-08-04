@@ -1,6 +1,9 @@
 dracut (103-1deepin2) unstable; urgency=medium
 
-  * fix(cve): CVE-2026-16445
+  * Fix CVE-2026-16445: DHCP command injection in NetworkManager-based initrd
+    - Backport upstream commit to fix improper shell escaping in nm-run.sh
+    - CVE-2026-16445: remote attacker on adjacent network can exploit
+      specially crafted DHCP options for root code execution
 
  -- deepin-ci-robot <packages@deepin.org>  Tue, 04 Aug 2026 10:49:14 +0800
 
@@ -778,12 +781,3 @@ dracut (002-1) unreleased; urgency=low
   * Version 002
 
  -- Philippe Seewer <philippe.seewer@bfh.ch>  Fri, 27 Nov 2009 15:52:00 +0100
-dracut (103-1deepin1) unstable; urgency=medium
-
-  * Fix command injection via DHCP options (CVE-2026-6893)
-    - Use printf with %%q escaping for shell scripts generated from
-      DHCP-provided values (hostname, gateway, root path, next server)
-    - Add defensive check in net-lib.sh for suspicious shell metacharacters
-
- -- deepin-ci-robot <packages@deepin.org>  Tue, 24 Jun 2026 19:47:00 +0800
-
