@@ -1,3 +1,12 @@
+dracut (103-1deepin4) unstable; urgency=medium
+
+  * fix(cve): CVE-2026-15816 (high) - fix(base): sanitize message
+    written by die() to the emergency hook   Upstream:
+    https://github.com/dracut-
+    ng/dracut/commit/c4d555716d569038ca38365741e94ee07908f261
+
+ -- deepin-ci-robot <packages@deepin.org>  Sun, 20 Sep 2026 10:30:15 +0800
+
 dracut (103-1deepin3) unstable; urgency=medium
 
   * Rebuild with LTO enabled (dpkg vendor feature optimize/lto).
