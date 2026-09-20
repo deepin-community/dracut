@@ -3,3 +3,4 @@ nm-path
 debian-initramfs-post-update.patch
 fix-CVE-2026-6893-dhcp-command-injection.patch
 CVE-2026-16445.patch
+CVE-2026-15816.patch
